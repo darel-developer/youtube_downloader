@@ -16,7 +16,7 @@ def index():
         try:
 
             ydl_opts = {
-                'format': 'best[ext=mp4]',
+                'format': 'best',
                 'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
                 'retries': 10,
                 'fragment_retries': 10
