@@ -44,7 +44,7 @@ background:#cc0000;
 transform:scale(1.05);
 }
 
-input{
+input, select{
 border-radius:10px !important;
 }
 
@@ -78,6 +78,12 @@ placeholder="Collez le lien de la vidéo YouTube"
 required>
 
 </div>
+    <div class="mb-3">
+        <select name="format" class="form-select form-select-lg">
+            <option value="mp4">Télécharger en MP4 (vidéo)</option>
+            <option value="mp3">Télécharger en MP3 (audio)</option>
+        </select>
+    </div>
 
 <div class="d-grid">
 
