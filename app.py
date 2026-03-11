@@ -19,12 +19,11 @@ ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
 assert os.path.exists(ffmpeg_path), "FFmpeg introuvable ! Vérifie imageio-ffmpeg"
 
 # Initialiser Whisper
-whisper_model = whisper.load_model("base")  # ou "tiny" pour plus rapide
+whisper_model = whisper.load_model("base")
 
-# Configurer OpenAI (mettre votre clé dans la variable d'environnement OPENAI_API_KEY)
+
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Configurer logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 # ====== FONCTION D'ATTENTE DE FICHIER STABLE ======
@@ -122,7 +121,7 @@ def generate_summary(video_url):
 # ====== ROUTE PRINCIPALE ======
 @app.route("/", methods=["GET", "POST"])
 def index():
-    summary = None  # pour envoyer le résumé au template
+    summary = None
 
     if request.method == "POST":
         url = request.form["url"]
@@ -170,7 +169,6 @@ def index():
 
     return render_template("index.html", summary=summary)
 
-# ====== LANCEMENT DU SERVEUR ======
 if __name__ == "__main__":
     logging.info("Démarrage du serveur Flask...")
     app.run(debug=True)
