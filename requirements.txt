@@ -1,0 +1,6 @@
+Flask
+yt_dlp
+imageio-ffmpeg
+whisper
+openai
+requests
