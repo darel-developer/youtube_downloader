@@ -1,7 +1,7 @@
 Flask
 yt_dlp
 imageio-ffmpeg
-whisper
+openai-whisper
 openai
 requests
 flake8
