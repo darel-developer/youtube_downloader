@@ -1,5 +1,7 @@
 # 🎥 YouTube Downloader & Summarizer
 
+[![Python CI](https://github.com/darel-developer/youtube_downloader/actions/workflows/ci.yml/badge.svg)](https://github.com/darel-developer/youtube_downloader/actions/workflows/ci.yml)
+
 Un petit service Flask qui permet de :
 
 - Télécharger une vidéo YouTube au format MP4 ou MP3.
@@ -81,6 +83,20 @@ Les fichiers sont envoyés en téléchargement et les résumés s’affichent di
 ---
 
 ## 🔮 Features à venir (idées)
+
+---
+
+## 🛠️ CI/CD
+
+Le projet est équipé d'un pipeline GitHub Actions défini dans `.github/workflows/ci.yml`. Il s'exécute sur chaque `push` ou `pull_request` vers la branche `main` et réalise :
+
+1. Installation de Python 3.11
+2. Installation des dépendances (`requirements.txt`) + `flake8` pour le linting
+3. Vérification de la syntaxe Python
+4. Un test de fumée minimal
+
+Le badge en haut du README indique l'état du pipeline ; remplacez `<owner>/<repo>` par votre dépôt.
+
 
 - 📁 **Historique / journaux** des vidéos traitées.
 - 🧠 Paramètres de résumé (longueur, langue, ton).

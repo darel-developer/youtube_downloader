@@ -4,3 +4,4 @@ imageio-ffmpeg
 whisper
 openai
 requests
+flake8
