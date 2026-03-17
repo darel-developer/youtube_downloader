@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, send_file, jsonify, session
 import yt_dlp
 import os
 import imageio_ffmpeg
-import whisper
 import openai
 import uuid
 import time
@@ -19,8 +18,9 @@ os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
 assert os.path.exists(ffmpeg_path), "FFmpeg introuvable ! Vérifie imageio-ffmpeg"
 
-# Initialiser Whisper
-whisper_model = whisper.load_model("base")
+def get_whisper_model():
+    import whisper
+    return whisper.load_model("tiny")
 
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -99,7 +99,8 @@ def generate_summary(video_url):
             logging.info("Transcription de l'audio avec Whisper...")
             if not os.path.exists(audio_file):
                 raise FileNotFoundError(f"Fichier audio introuvable juste avant Whisper : {audio_file}")
-            result = whisper_model.transcribe(audio_file)
+            model = get_whisper_model()
+            result = model.transcribe(audio_file)
             text_for_summary = result['text']
             os.remove(audio_file)
             logging.info("Fichier audio temporaire supprimé")
