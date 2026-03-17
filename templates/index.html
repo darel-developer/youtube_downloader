@@ -2,85 +2,782 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>YouTube Downloader</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <style>
+:root {
+    --brand: #ff2b2b;
+    --brand-dark: #9b0a0a;
+    --bg-start: #050a1c;
+    --bg-end: #1c1740;
+    --card-bg: rgba(255, 255, 255, 0.92);
+    --shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    --accent: #00e6ff;
+}
+
+* {
+    box-sizing: border-box;
+}
+
 body {
-    background: linear-gradient(135deg,#ff0000,#ff6a00);
-    height:100vh;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-family:Arial, Helvetica, sans-serif;
+    min-height: 100vh;
+    margin: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: radial-gradient(circle at top, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 55%),
+                linear-gradient(140deg, var(--bg-start), var(--bg-end));
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
 }
+
 .card {
-    border:none;
-    border-radius:20px;
-    box-shadow:0 10px 40px rgba(0,0,0,0.2);
+    border: none;
+    border-radius: 1.5rem;
+    background: var(--card-bg);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(18px);
+    overflow: hidden;
 }
-.title {
-    font-weight:bold;
-    color:#ff0000;
+
+.card-header {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.5));
+    padding: 1.5rem 1.5rem 1rem;
 }
+
+h1.title {
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    margin: 0;
+    color: #0f172a;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+h1.title span {
+    margin-left: 0.6rem;
+    font-size: 1.1rem;
+    opacity: 0.8;
+    transition: transform 0.25s ease;
+}
+
+h1.title:hover span {
+    transform: translateY(-2px);
+}
+
+.form-control,
+.form-select {
+    border-radius: 1rem;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    padding: 1rem 1rem;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.form-label {
+    font-weight: 600;
+}
+
 .btn-download {
-    background:#ff0000;
-    border:none;
-    transition:0.3s;
+    background: linear-gradient(90deg, var(--brand), var(--brand-dark));
+    border: none;
+    border-radius: 1rem;
+    padding: 0.95rem 1.2rem;
+    font-weight: 700;
+    font-size: 1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
+
 .btn-download:hover {
-    background:#cc0000;
-    transform:scale(1.05);
+    transform: translateY(-1px);
+    box-shadow: 0 18px 30px rgba(0, 0, 0, 0.25);
 }
-input, select {
-    border-radius:10px !important;
+
+.btn-outline-secondary {
+    border-radius: 1rem;
+    padding: 0.95rem 1.2rem;
+    font-weight: 700;
+    border-width: 2px;
 }
-.summary-div {
-    margin-top: 20px;
-    padding: 15px;
-    background-color: #fff3cd;
-    border: 1px solid #ffeeba;
-    border-radius: 10px;
-    color: #856404;
+
+.status {
+    margin-top: 1rem;
+    padding: 1.1rem 1.1rem;
+    border-radius: 1.2rem;
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.status h5 {
+    margin-bottom: 0.5rem;
+    font-weight: 700;
+}
+
+.status p {
+    margin-bottom: 0;
+    line-height: 1.5;
+}
+
+.spinner-border {
+    width: 1.25rem;
+    height: 1.25rem;
+    vertical-align: text-bottom;
+    margin-right: 0.5rem;
+}
+
+.game-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(7, 18, 40, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    z-index: 9999;
+}
+
+.game-card {
+    width: min(560px, 100%);
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.68));
+    border-radius: 1.5rem;
+    box-shadow: 0 28px 60px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.game-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.game-close {
+    border: none;
+    background: transparent;
+    font-size: 1.3rem;
+    cursor: pointer;
+    color: rgba(15, 23, 42, 0.75);
+    transition: color 0.2s ease;
+}
+
+.game-close:hover {
+    color: rgba(15, 23, 42, 1);
+}
+
+.game-body {
+    padding: 1.25rem 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.game-description {
+    margin-bottom: 1rem;
+    white-space: pre-line;
+    line-height: 1.6;
+}
+
+.game-inventory {
+    font-size: 0.9rem;
+    color: rgba(15, 23, 42, 0.7);
+    margin-bottom: 1rem;
+}
+
+.game-map {
+    display: grid;
+    gap: 0.4rem;
+    margin: 1.2rem 0;
+    padding: 0.6rem;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 1.25rem;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.map-cell {
+    position: relative;
+    border-radius: 0.85rem;
+    padding: 0.5rem;
+    min-height: 64px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    font-size: 0.75rem;
+    color: rgba(15, 23, 42, 0.85);
+    text-align: center;
+}
+
+.map-cell--fog {
+    filter: brightness(0.7);
+    opacity: 0.65;
+}
+
+.map-cell--player {
+    box-shadow: 0 0 0 2px var(--brand);
+}
+
+.map-cell--blocked {
+    background: rgba(0, 0, 0, 0.05);
+    border-style: dashed;
+}
+
+.map-cell__icon {
+    font-size: 1.35rem;
+    margin-bottom: 0.25rem;
+}
+
+.map-cell__marker {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    font-size: 0.95rem;
+}
+
+.game-hint {
+    font-size: 0.85rem;
+    color: rgba(15, 23, 42, 0.65);
+    margin-top: 0.5rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.game-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+}
+
+.game-action {
+    border-radius: 1.05rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    font-weight: 700;
+    text-align: center;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.game-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+@media (max-width: 576px) {
+    .card {
+        padding: 1.2rem;
+    }
+
+    h1.title {
+        font-size: 1.8rem;
+    }
 }
 </style>
 </head>
 <body>
 
-<div class="container">
+<div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card p-4">
-                <h3 class="text-center title mb-4">🎬 YouTube Video Downloader</h3>
-                <form method="POST">
-                    <div class="mb-3">
-                        <input type="text" class="form-control form-control-lg" name="url" placeholder="Collez le lien de la vidéo YouTube" required>
-                    </div>
-                    <div class="mb-3">
-                        <select name="format" class="form-select form-select-lg">
-                            <option value="mp4">Télécharger en MP4 (vidéo)</option>
-                            <option value="mp3">Télécharger en MP3 (audio)</option>
-                        </select>
-                    </div>
-                    <div class="d-grid mb-2">
-                        <button class="btn btn-download btn-lg text-white" type="submit">⬇ Télécharger la vidéo</button>
-                    </div>
-                    <div class="d-grid">
-                        <button class="btn btn-primary btn-lg text-white" name="action" value="summarize">Résumé de la vidéo</button>
-                    </div>
-                </form>
-
-                <!-- Div pour afficher le résumé -->
-                {% if summary %}
-                <div class="summary-div">
-                    <h5>Résumé de la vidéo :</h5>
-                    <p>{{ summary }}</p>
+        <div class="col-md-7 col-lg-6">
+            <div class="card">
+                <div class="card-header text-center">
+                    <h1 id="appTitle" class="title">Téléchargeur YouTube <span>🎮</span></h1>
+                    <p class="text-muted mt-2">Collez un lien YouTube, choisissez le format et téléchargez en un clic.</p>
                 </div>
-                {% endif %}
+                <div class="card-body px-4 pb-4 pt-0">
+                    <form id="dlForm" autocomplete="off">
+                        <div class="mb-3">
+                            <label class="form-label" for="url">URL de la vidéo</label>
+                            <input id="url" name="url" class="form-control" type="url" placeholder="https://www.youtube.com/watch?v=..." required>
+                        </div>
 
+                        <div class="mb-3">
+                            <label class="form-label" for="format">Format</label>
+                            <select id="format" name="format" class="form-select">
+                                <option value="mp4">MP4 (vidéo)</option>
+                                <option value="mp3">MP3 (audio)</option>
+                            </select>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button id="downloadBtn" class="btn btn-download btn-lg text-white" type="submit">Télécharger</button>
+                            <button id="summarizeBtn" class="btn btn-outline-secondary btn-lg" type="button">Résumé (sans rechargement)</button>
+                        </div>
+                    </form>
+
+                    <div id="status" class="status mt-4 d-none" role="status">
+                        <h5>Status</h5>
+                        <p id="statusMessage" class="mb-0"></p>
+                    </div>
+
+                    <div id="summaryCard" class="status mt-4 d-none" role="region" aria-live="polite">
+                        <h5>Résumé de la vidéo</h5>
+                        <p id="summaryText" class="mb-0"></p>
+                    </div>
+
+                    {% if summary %}
+                    <div class="status mt-4">
+                        <h5>Résumé de la vidéo</h5>
+                        <p>{{ summary }}</p>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+
+
+<script>
+const summaryBtn = document.getElementById('summarizeBtn');
+const downloadForm = document.getElementById('dlForm');
+const statusEl = document.getElementById('status');
+const statusMessage = document.getElementById('statusMessage');
+const summaryCard = document.getElementById('summaryCard');
+const summaryText = document.getElementById('summaryText');
+
+const appTitle = document.getElementById('appTitle');
+const gameOverlay = document.getElementById('gameOverlay');
+const gameDescription = document.getElementById('gameDescription');
+const gameMap = document.getElementById('gameMap');
+const gameInventory = document.getElementById('gameInventory');
+const gameHint = document.getElementById('gameHint');
+const gameActions = document.getElementById('gameActions');
+const gameClose = document.getElementById('gameClose');
+
+let gameIsOpen = false;
+
+function setStatus(message, isError = false) {
+    statusEl.classList.remove('d-none');
+    statusMessage.textContent = message;
+    statusEl.style.borderColor = isError ? 'rgba(220, 53, 69, 0.3)' : 'rgba(0, 123, 255, 0.3)';
+    statusEl.style.backgroundColor = isError ? 'rgba(255, 230, 230, 0.85)' : 'rgba(226, 241, 255, 0.85)';
+}
+
+function clearStatus() {
+    statusEl.classList.add('d-none');
+    statusMessage.textContent = '';
+}
+
+function showSummary(text) {
+    summaryText.textContent = text;
+    summaryCard.classList.remove('d-none');
+}
+
+function hideSummary() {
+    summaryCard.classList.add('d-none');
+    summaryText.textContent = '';
+}
+
+function disableForm(disabled) {
+    downloadForm.querySelectorAll('button, input, select').forEach(el => el.disabled = disabled);
+}
+
+function getFilenameFromDisposition(disposition) {
+    if (!disposition) return null;
+    const match = /filename\*?=(?:UTF-8''?)?"?([^";]+)"?/.exec(disposition);
+    return match ? decodeURIComponent(match[1]) : null;
+}
+
+async function fetchSummary() {
+    const urlInput = document.getElementById('url');
+    const url = urlInput.value.trim();
+    if (!url) {
+        setStatus('Veuillez entrer une URL YouTube.', true);
+        return;
+    }
+
+    clearStatus();
+    hideSummary();
+
+    setStatus('Génération du résumé…', false);
+    summaryBtn.disabled = true;
+    disableForm(true);
+
+    try {
+        const resp = await fetch('/api/summarize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+            throw new Error(data.error || `Erreur ${resp.status}`);
+        }
+
+        showSummary(data.summary);
+        setStatus('Résumé généré avec succès ✅');
+    } catch (err) {
+        setStatus(`Erreur : ${err.message}`, true);
+    } finally {
+        summaryBtn.disabled = false;
+        disableForm(false);
+    }
+}
+
+async function handleDownload(event) {
+    event.preventDefault();
+
+    const urlInput = document.getElementById('url');
+    const formatSelect = document.getElementById('format');
+    const url = urlInput.value.trim();
+    const format = formatSelect.value;
+
+    if (!url) {
+        setStatus('Veuillez entrer une URL YouTube.', true);
+        return;
+    }
+
+    clearStatus();
+    hideSummary();
+
+    setStatus('Téléchargement en cours…', false);
+    disableForm(true);
+
+    try {
+        const resp = await fetch('/api/download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, format })
+        });
+
+        if (!resp.ok) {
+            const data = await resp.json();
+            throw new Error(data.error || `Erreur ${resp.status}`);
+        }
+
+        const blob = await resp.blob();
+        const contentDisp = resp.headers.get('Content-Disposition');
+        const filename = getFilenameFromDisposition(contentDisp) || `download.${format}`;
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+
+        setStatus('Téléchargement prêt ! ✅');
+    } catch (err) {
+        setStatus(`Erreur : ${err.message}`, true);
+    } finally {
+        disableForm(false);
+    }
+}
+
+async function openGame() {
+    gameOverlay.classList.remove('d-none');
+    gameIsOpen = true;
+
+    try {
+        const resp = await fetch('/api/game/start', { method: 'POST' });
+        const data = await resp.json();
+        renderWerewolfGame(data);
+    } catch (err) {
+        console.error(err);
+        alert('Impossible de démarrer le jeu.');
+    }
+}
+
+function closeGame() {
+    gameOverlay.classList.add('d-none');
+    gameIsOpen = false;
+}
+
+function renderWerewolfGame(scene) {
+    const gamePhase = document.getElementById('gamePhase');
+    const gamePlayers = document.getElementById('gamePlayers');
+    const gameChat = document.getElementById('gameChat');
+    const gameNightAction = document.getElementById('gameNightAction');
+    const gameActions = document.getElementById('gameActions');
+    const gameGameOver = document.getElementById('gameGameOver');
+
+    if (scene.phase === 'game_over') {
+        gamePhase.textContent = '';
+        gamePlayers.innerHTML = '';
+        gameChat.innerHTML = '';
+        gameNightAction.classList.add('d-none');
+        gameActions.innerHTML = '';
+        gameGameOver.classList.remove('d-none');
+        gameGameOver.innerHTML = `
+            <h3>Partie terminée !</h3>
+            <p>Les ${scene.winner} ont gagné !</p>
+            <button class="game-action" onclick="sendWerewolfAction('start_game')">Nouvelle partie</button>
+        `;
+        return;
+    }
+
+    gameGameOver.classList.add('d-none');
+
+    // Phase
+    gamePhase.textContent = scene.phase === 'night' ? '🌙 Nuit' : '☀️ Jour';
+
+    // Joueurs
+    gamePlayers.innerHTML = '';
+    scene.players.forEach(player => {
+        const div = document.createElement('div');
+        div.className = 'game-player';
+        div.classList.add(scene.alive.includes(player) ? 'alive' : 'dead');
+        if (player === scene.human_player) div.classList.add('you');
+        div.textContent = player;
+        gamePlayers.appendChild(div);
+    });
+
+    // Chat
+    gameChat.innerHTML = '';
+    scene.chat.forEach(msg => {
+        const div = document.createElement('div');
+        div.className = 'game-chat-message';
+        div.textContent = msg.message;
+        gameChat.appendChild(div);
+    });
+    gameChat.scrollTop = gameChat.scrollHeight;
+
+    // Action de nuit
+    if (scene.night_action_required) {
+        gameNightAction.classList.remove('d-none');
+        gameNightAction.innerHTML = `<strong>${scene.night_action_required.description}</strong>`;
+        
+        if (scene.night_action_required.type === 'choose_lovers') {
+            const select1 = document.createElement('select');
+            select1.className = 'game-select';
+            select1.id = 'lover1';
+            scene.players.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                select1.appendChild(opt);
+            });
+            
+            const select2 = document.createElement('select');
+            select2.className = 'game-select';
+            select2.id = 'lover2';
+            scene.players.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                select2.appendChild(opt);
+            });
+            
+            const btn = document.createElement('button');
+            btn.className = 'game-action';
+            btn.textContent = 'Choisir les amoureux';
+            btn.onclick = () => {
+                const p1 = document.getElementById('lover1').value;
+                const p2 = document.getElementById('lover2').value;
+                if (p1 !== p2) {
+                    sendWerewolfAction('choose_lovers', { players: [p1, p2] });
+                }
+            };
+            
+            gameNightAction.appendChild(document.createElement('br'));
+            gameNightAction.appendChild(select1);
+            gameNightAction.appendChild(select2);
+            gameNightAction.appendChild(btn);
+        } else if (scene.night_action_required.type === 'inspect_player') {
+            const select = document.createElement('select');
+            select.className = 'game-select';
+            select.id = 'inspectTarget';
+            scene.players.filter(p => p !== scene.human_player).forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                select.appendChild(opt);
+            });
+            
+            const btn = document.createElement('button');
+            btn.className = 'game-action';
+            btn.textContent = 'Inspecter';
+            btn.onclick = () => {
+                const target = document.getElementById('inspectTarget').value;
+                sendWerewolfAction('inspect_player', { target });
+            };
+            
+            gameNightAction.appendChild(document.createElement('br'));
+            gameNightAction.appendChild(select);
+            gameNightAction.appendChild(btn);
+        } else if (scene.night_action_required.type === 'witch_action') {
+            const victim = scene.night_action_required.victim;
+            const potions = scene.witch_potions;
+            
+            if (potions.life) {
+                const btnSave = document.createElement('button');
+                btnSave.className = 'game-action';
+                btnSave.textContent = `Sauver ${victim}`;
+                btnSave.onclick = () => sendWerewolfAction('witch_action', { use_life: true });
+                gameNightAction.appendChild(btnSave);
+            }
+            
+            if (potions.death) {
+                const select = document.createElement('select');
+                select.className = 'game-select';
+                select.id = 'witchKill';
+                scene.players.filter(p => p !== scene.human_player).forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p;
+                    opt.textContent = p;
+                    select.appendChild(opt);
+                });
+                
+                const btnKill = document.createElement('button');
+                btnKill.className = 'game-action';
+                btnKill.textContent = 'Tuer quelqu\'un';
+                btnKill.onclick = () => {
+                    const target = document.getElementById('witchKill').value;
+                    sendWerewolfAction('witch_action', { use_death: true, death_target: target });
+                };
+                
+                gameNightAction.appendChild(select);
+                gameNightAction.appendChild(btnKill);
+            }
+            
+            const btnNothing = document.createElement('button');
+            btnNothing.className = 'game-action';
+            btnNothing.textContent = 'Ne rien faire';
+            btnNothing.onclick = () => sendWerewolfAction('witch_action', {});
+            gameNightAction.appendChild(btnNothing);
+        } else if (scene.night_action_required.type === 'wolf_vote') {
+            const select = document.createElement('select');
+            select.className = 'game-select';
+            select.id = 'wolfTarget';
+            scene.players.filter(p => p !== scene.human_player).forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                select.appendChild(opt);
+            });
+            
+            const btn = document.createElement('button');
+            btn.className = 'game-action';
+            btn.textContent = 'Choisir victime';
+            btn.onclick = () => {
+                const target = document.getElementById('wolfTarget').value;
+                sendWerewolfAction('wolf_vote', { target });
+            };
+            
+            gameNightAction.appendChild(document.createElement('br'));
+            gameNightAction.appendChild(select);
+            gameNightAction.appendChild(btn);
+        }
+    } else {
+        gameNightAction.classList.add('d-none');
+    }
+
+    // Actions générales
+    gameActions.innerHTML = '';
+    
+    if (scene.phase === 'day') {
+        // Chat
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'game-input';
+        input.placeholder = 'Tapez votre message...';
+        input.id = 'chatInput';
+        
+        const btnChat = document.createElement('button');
+        btnChat.className = 'game-action';
+        btnChat.textContent = 'Envoyer';
+        btnChat.onclick = () => {
+            const msg = document.getElementById('chatInput').value.trim();
+            if (msg) {
+                sendWerewolfAction('chat', { message: msg });
+                document.getElementById('chatInput').value = '';
+            }
+        };
+        
+        gameActions.appendChild(input);
+        gameActions.appendChild(btnChat);
+        
+        // Vote
+        const selectVote = document.createElement('select');
+        selectVote.className = 'game-select';
+        selectVote.id = 'voteTarget';
+        const optNone = document.createElement('option');
+        optNone.value = '';
+        optNone.textContent = 'Choisir joueur à éliminer';
+        selectVote.appendChild(optNone);
+        scene.players.filter(p => scene.alive.includes(p)).forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p;
+            opt.textContent = p;
+            selectVote.appendChild(opt);
+        });
+        
+        const btnVote = document.createElement('button');
+        btnVote.className = 'game-action';
+        btnVote.textContent = 'Voter';
+        btnVote.onclick = () => {
+            const target = document.getElementById('voteTarget').value;
+            if (target) {
+                sendWerewolfAction('vote', { target });
+            }
+        };
+        
+        gameActions.appendChild(selectVote);
+        gameActions.appendChild(btnVote);
+    }
+    
+    // Résultat de l'inspection
+    if (scene.night_actions && scene.night_actions.voyante_result) {
+        const resultDiv = document.createElement('div');
+        resultDiv.className = 'game-night-action';
+        resultDiv.textContent = scene.night_actions.voyante_result;
+        gameActions.appendChild(resultDiv);
+    }
+}
+
+async function sendWerewolfAction(action, data = {}) {
+    data.action = action;
+    
+    try {
+        const resp = await fetch('/api/game/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const scene = await resp.json();
+        if (!resp.ok) {
+            throw new Error(scene.error || `Erreur ${resp.status}`);
+        }
+        renderWerewolfGame(scene);
+    } catch (err) {
+        console.error(err);
+        alert('Erreur : ' + err.message);
+    }
+}
+
+summaryBtn.addEventListener('click', (event) => {
+    event.preventDefault();
+    fetchSummary();
+});
+
+downloadForm.addEventListener('submit', handleDownload);
+appTitle.addEventListener('click', (event) => {
+    event.preventDefault();
+    openGame();
+});
+gameClose.addEventListener('click', closeGame);
+</script>
 
 </body>
 </html>

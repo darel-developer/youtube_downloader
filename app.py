@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, jsonify, session
 import yt_dlp
 import os
 import imageio_ffmpeg
@@ -11,6 +11,7 @@ import requests
 import logging
 
 app = Flask(__name__)
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'super-secret-dev-key')
 
 # ====== CONFIGURATION ======
 DOWNLOAD_FOLDER = "downloads"
@@ -118,7 +119,66 @@ def generate_summary(video_url):
     logging.info("Résumé généré avec succès")
     return summary
 
+def _download_video(url, file_format):
+    # Reuse the same logic as in index() for downloads
+    if file_format == "mp4":
+        ydl_opts = {
+            'format': 'best',
+            'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
+            'retries': 10,
+            'fragment_retries': 10
+        }
+    else:
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
+            'ffmpeg_location': ffmpeg_path,
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }]
+        }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        filename = ydl.prepare_filename(info)
+        if file_format == "mp3":
+            filename = os.path.splitext(filename)[0] + ".mp3"
+        return filename
+
+
 # ====== ROUTE PRINCIPALE ======
+@app.route("/api/summarize", methods=["POST"])
+def api_summarize():
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "URL manquante"}), 400
+
+    try:
+        summary = generate_summary(url)
+        return jsonify({"summary": summary})
+    except Exception as e:
+        logging.error(f"Erreur résumé AJAX : {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/download", methods=["POST"])
+def api_download():
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    file_format = (data.get("format") or "mp4").strip()
+    if not url:
+        return jsonify({"error": "URL manquante"}), 400
+
+    try:
+        filename = _download_video(url, file_format)
+        return send_file(filename, as_attachment=True)
+    except Exception as e:
+        logging.error(f"Erreur téléchargement AJAX : {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     summary = None
