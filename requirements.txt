@@ -1,7 +1,8 @@
-Flask
-yt_dlp
+flask
+yt-dlp
 imageio-ffmpeg
 openai-whisper
 openai
 requests
-flake8
+gunicorn
+python-dotenv
