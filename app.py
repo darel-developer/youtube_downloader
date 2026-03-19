@@ -12,6 +12,10 @@ import logging
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'super-secret-dev-key')
 
+@app.route("/robots.txt")
+def robots():
+    return "User-agent: *\nAllow: /\nSitemap: https://https://youtube-downloader-z1vn.onrender.com/sitemap.xml", 200, {'Content-Type': 'text/plain'}
+
 # ====== CONFIGURATION ======
 DOWNLOAD_FOLDER = "downloads"
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
