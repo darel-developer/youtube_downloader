@@ -1,531 +1,532 @@
 
+import logging
 import os
 import re
 import time
 import uuid
-import logging
 from pathlib import Path
 
-import requests
-import yt_dlp
 import imageio_ffmpeg
+import yt_dlp
+from dotenv import load_dotenv
+from flask import Flask, jsonify, render_template, request, send_file
+from groq import Groq
+from werkzeug.utils import secure_filename
 
-from flask import (
-    Flask,
-    render_template,
-    request,
-    send_file,
-    jsonify,
-)
-from openai import OpenAI
 from marketing import marketing_bp
 
 
-# ==================================================
-# INITIALISATION FLASK
-# ==================================================
-
-app = Flask(__name__)
-app.secret_key = os.getenv(
-    "FLASK_SECRET_KEY",
-    "super-secret-dev-key"
-)
-
-app.register_blueprint(marketing_bp)
-
-
-# ==================================================
+# =========================================================
 # CONFIGURATION
-# ==================================================
+# =========================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 DOWNLOAD_FOLDER = BASE_DIR / "downloads"
 DOWNLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
+load_dotenv(BASE_DIR / ".env")
 
-def cleanup_stale_files(folder=DOWNLOAD_FOLDER, max_age_seconds=3600):
-    """Supprime les fichiers temporaires obsolètes pour limiter la taille du dossier."""
-    if not folder.exists():
-        return
-
-    now = time.time()
-    for path in folder.iterdir():
-        try:
-            if path.is_file() and (now - path.stat().st_mtime) > max_age_seconds:
-                path.unlink()
-        except OSError as exc:
-            logging.warning("Impossible de nettoyer %s : %s", path, exc)
-
-
-cleanup_stale_files()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "change-this-secret-key")
 
 FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
-if not os.path.isfile(FFMPEG_PATH):
-    raise RuntimeError(
-        f"FFmpeg introuvable : {FFMPEG_PATH}"
-    )
+app = Flask(__name__)
+app.secret_key = FLASK_SECRET_KEY
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+
+app.register_blueprint(marketing_bp)
+
+client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+logger = logging.getLogger(__name__)
 
 
-# ==================================================
-# ROBOTS.TXT
-# ==================================================
-
-@app.route("/robots.txt")
-def robots():
-    return (
-        "User-agent: *\n"
-        "Allow: /\n"
-        "Sitemap: https://youtube-downloader-z1vn.onrender.com/sitemap.xml",
-        200,
-        {"Content-Type": "text/plain; charset=utf-8"},
-    )
-
-
-# ==================================================
-# OUTILS
-# ==================================================
+# =========================================================
+# VALIDATION DES URLS YOUTUBE
+# =========================================================
 
 def validate_url(url):
-    """Accepte uniquement les URL YouTube."""
-    from urllib.parse import urlparse
+    """Vérifier que l'URL correspond à YouTube."""
+    if not isinstance(url, str):
+        return False
 
-    parsed = urlparse(url)
-    hostname = (parsed.hostname or "").lower()
+    url = url.strip()
 
-    allowed_hosts = {
-        "youtube.com",
-        "www.youtube.com",
-        "m.youtube.com",
-        "music.youtube.com",
-        "youtu.be",
-        "www.youtube-nocookie.com",
-    }
+    pattern = (
+        r"^(https?://)?"
+        r"(www\.|m\.)?"
+        r"(youtube\.com|youtu\.be|youtube-nocookie\.com)"
+        r"(/|$)"
+    )
 
-    if parsed.scheme not in ("http", "https"):
-        raise ValueError("L'URL doit commencer par http:// ou https://.")
+    return bool(re.match(pattern, url, re.IGNORECASE))
 
-    if hostname not in allowed_hosts:
-        raise ValueError("Veuillez fournir une URL YouTube valide.")
+
+def normalize_url(url):
+    """Ajouter https:// si le protocole est absent."""
+    url = url.strip()
+
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
 
     return url
 
 
-def create_ydl_options():
-    """Options communes à yt-dlp."""
-    return {
-        "ffmpeg_location": FFMPEG_PATH,
+# =========================================================
+# OPTIONS YT-DLP
+# =========================================================
+
+def create_ydl_options(output_path=None, audio_only=False):
+    """Préparer les options de téléchargement."""
+    options = {
+        "quiet": True,
+        "no_warnings": True,
         "noplaylist": True,
-        "retries": 5,
-        "fragment_retries": 5,
+        "ffmpeg_location": FFMPEG_PATH,
+        "socket_timeout": 30,
+        "retries": 3,
+    }
+
+    if output_path:
+        options["outtmpl"] = str(output_path)
+
+    if audio_only:
+        options["format"] = "bestaudio/best"
+        options["postprocessors"] = [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
+            }
+        ]
+    else:
+        options["format"] = "bestvideo*+bestaudio/best"
+        options["merge_output_format"] = "mp4"
+
+    return options
+
+
+# =========================================================
+# EXTRACTION ET NETTOYAGE DES SOUS-TITRES
+# =========================================================
+
+def clean_subtitles(text):
+    """Nettoyer un fichier VTT ou SRT."""
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(
+        r"\d{2}:\d{2}:\d{2}[.,]\d{3}\s*-->\s*"
+        r"\d{2}:\d{2}:\d{2}[.,]\d{3}.*",
+        " ",
+        text,
+    )
+    text = re.sub(
+        r"\d{2}:\d{2}[.,]\d{3}\s*-->\s*\d{2}:\d{2}[.,]\d{3}.*",
+        " ",
+        text,
+    )
+    text = re.sub(r"^\s*\d+\s*$", " ", text, flags=re.MULTILINE)
+    text = re.sub(r"WEBVTT.*", " ", text)
+    text = re.sub(r"NOTE.*", " ", text)
+    text = re.sub(r"\s+", " ", text)
+
+    return text.strip()
+
+
+def extract_subtitles(video_url, work_id):
+    """Télécharger les sous-titres disponibles et extraire leur texte."""
+    output_template = str(DOWNLOAD_FOLDER / f"{work_id}.%(ext)s")
+
+    options = {
+        "skip_download": True,
+        "writesubtitles": True,
+        "writeautomaticsub": True,
+        "subtitleslangs": ["fr", "fr-FR", "en", "en-US"],
+        "subtitlesformat": "vtt/best",
+        "outtmpl": output_template,
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
         "socket_timeout": 30,
     }
 
+    try:
+        with yt_dlp.YoutubeDL(options) as ydl:
+            ydl.download([video_url])
 
-# ==================================================
-# WHISPER
-# ==================================================
+        subtitle_files = list(DOWNLOAD_FOLDER.glob(f"{work_id}*.vtt"))
+        subtitle_files += list(DOWNLOAD_FOLDER.glob(f"{work_id}*.srt"))
 
-def get_whisper_model():
-    import whisper
-    return whisper.load_model("tiny")
+        for subtitle_file in subtitle_files:
+            try:
+                content = subtitle_file.read_text(
+                    encoding="utf-8",
+                    errors="ignore",
+                )
+                cleaned = clean_subtitles(content)
+
+                if cleaned:
+                    logger.info("Sous-titres récupérés.")
+                    return cleaned
+            finally:
+                try:
+                    subtitle_file.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning(
+                        "Impossible de supprimer %s",
+                        subtitle_file,
+                    )
+
+    except Exception:
+        logger.exception("Impossible de récupérer les sous-titres.")
+
+    return None
 
 
-# ==================================================
-# RÉSUMÉ VIDÉO
-# ==================================================
+# =========================================================
+# TRANSCRIPTION AVEC WHISPER (OPTIONNEL)
+# =========================================================
 
-def generate_summary(video_url):
-    cleanup_stale_files()
-
-    if client is None:
-        raise RuntimeError(
-            "La clé OPENAI_API_KEY n'est pas configurée."
+def transcribe_with_whisper(video_url, work_id):
+    """
+    Télécharger temporairement l'audio puis le transcrire avec Whisper.
+    Whisper doit être installé dans le même environnement Python.
+    """
+    try:
+        import whisper
+    except ImportError:
+        logger.warning(
+            "Whisper n'est pas installé. "
+            "La transcription locale ne sera pas disponible."
         )
+        return None
 
-    validate_url(video_url)
+    audio_template = str(DOWNLOAD_FOLDER / f"{work_id}_audio.%(ext)s")
 
-    logging.info("Début du résumé vidéo.")
-
-    text_for_summary = ""
-    audio_file = None
-
-    # Première tentative : récupérer les sous-titres
-    ydl_opts = create_ydl_options()
-    ydl_opts.update({
-        "skip_download": True,
+    options = {
+        "format": "bestaudio/best",
+        "outtmpl": audio_template,
         "quiet": True,
         "no_warnings": True,
-    })
+        "noplaylist": True,
+        "ffmpeg_location": FFMPEG_PATH,
+        "socket_timeout": 30,
+        "retries": 3,
+    }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(video_url, download=False)
+    audio_file = None
 
-    subtitles = info.get("subtitles") or {}
-    automatic_subtitles = info.get("automatic_captions") or {}
-
-    # Priorité aux sous-titres français, puis anglais,
-    # puis aux autres langues disponibles.
-    available = subtitles or automatic_subtitles
-
-    if available:
-        lang = (
-            "fr" if "fr" in available
-            else "en" if "en" in available
-            else next(iter(available))
-        )
-
-        entries = available.get(lang, [])
-
-        subtitle_entry = next(
-            (
-                item for item in entries
-                if item.get("ext") == "vtt"
-            ),
-            entries[0] if entries else None,
-        )
-
-        if subtitle_entry:
-            response = requests.get(
-                subtitle_entry["url"],
-                timeout=30,
-            )
-            response.raise_for_status()
-            subtitle_text = response.text
-
-            # Supprimer les en-têtes, timestamps et balises VTT.
-            subtitle_text = re.sub(
-                r"(?m)^\d{2}:\d{2}:\d{2}\.\d+\s+-->.*$",
-                " ",
-                subtitle_text,
-            )
-            subtitle_text = re.sub(
-                r"(?m)^\d{2}:\d{2}(?:\.\d+)?\s+-->.*$",
-                " ",
-                subtitle_text,
-            )
-            subtitle_text = re.sub(
-                r"<[^>]+>",
-                " ",
-                subtitle_text,
-            )
-            subtitle_text = re.sub(
-                r"(?m)^(WEBVTT|Kind:.*|Language:.*|\d+)\s*$",
-                " ",
-                subtitle_text,
-            )
-            subtitle_text = re.sub(
-                r"\s+",
-                " ",
-                subtitle_text,
-            ).strip()
-
-            text_for_summary = subtitle_text
-
-    # Si aucun sous-titre exploitable, télécharger l'audio
-    # puis le transcrire avec Whisper.
-    if not text_for_summary:
-        audio_file = DOWNLOAD_FOLDER / f"temp_audio_{uuid.uuid4().hex}"
-
-        ydl_opts_audio = create_ydl_options()
-        ydl_opts_audio.update({
-            "format": "bestaudio/best",
-            "outtmpl": str(audio_file) + ".%(ext)s",
-            "quiet": True,
-            "no_warnings": True,
-        })
-
-        with yt_dlp.YoutubeDL(ydl_opts_audio) as ydl:
+    try:
+        with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.extract_info(video_url, download=True)
-            downloaded_path = Path(ydl.prepare_filename(info))
+            audio_file = Path(ydl.prepare_filename(info))
 
-        if not downloaded_path.exists():
+        # yt-dlp peut changer l'extension selon le format audio.
+        if not audio_file.exists():
             candidates = list(
-                DOWNLOAD_FOLDER.glob(audio_file.name + ".*")
+                DOWNLOAD_FOLDER.glob(f"{work_id}_audio.*")
             )
-            if not candidates:
-                raise FileNotFoundError(
-                    "Le fichier audio temporaire est introuvable."
-                )
-            downloaded_path = candidates[0]
+            audio_file = candidates[0] if candidates else None
 
-        audio_file = downloaded_path
+        if not audio_file or not audio_file.exists():
+            logger.error("Fichier audio introuvable après téléchargement.")
+            return None
 
-        try:
-            logging.info("Transcription audio avec Whisper.")
-            model = get_whisper_model()
-            result = model.transcribe(str(audio_file))
-            text_for_summary = result.get("text", "").strip()
-        finally:
-            if audio_file.exists():
-                audio_file.unlink()
+        logger.info("Chargement du modèle Whisper.")
+        model = whisper.load_model("base")
 
-    if not text_for_summary:
-        raise RuntimeError(
-            "Impossible de récupérer le texte de cette vidéo."
+        logger.info("Transcription audio en cours.")
+        result = model.transcribe(
+            str(audio_file),
+            fp16=False,
         )
 
-    # Limiter la taille envoyée au modèle pour éviter
-    # une requête excessivement longue.
-    text_for_summary = text_for_summary[:50000]
+        transcription = (result.get("text") or "").strip()
+        return transcription or None
 
-    logging.info("Génération du résumé avec OpenAI.")
+    except Exception:
+        logger.exception("Erreur pendant la transcription Whisper.")
+        return None
+
+    finally:
+        for file_path in DOWNLOAD_FOLDER.glob(f"{work_id}_audio.*"):
+            try:
+                file_path.unlink(missing_ok=True)
+            except OSError:
+                logger.warning("Impossible de supprimer %s", file_path)
+
+
+# =========================================================
+# GÉNÉRATION DU RÉSUMÉ AVEC GROQ
+# =========================================================
+
+def generate_summary(video_url):
+    """Résumer une vidéo YouTube à partir de ses sous-titres ou de Whisper."""
+    if client is None:
+        raise RuntimeError(
+            "La clé GROQ_API_KEY n'est pas configurée dans le fichier .env."
+        )
+
+    if not validate_url(video_url):
+        raise ValueError("L'URL fournie ne semble pas être une URL YouTube valide.")
+
+    video_url = normalize_url(video_url)
+    work_id = uuid.uuid4().hex
+
+    # 1. Essayer de récupérer les sous-titres.
+    transcript = extract_subtitles(video_url, work_id)
+
+    # 2. Si les sous-titres sont indisponibles, essayer Whisper.
+    if not transcript:
+        logger.info("Sous-titres indisponibles : tentative avec Whisper.")
+        transcript = transcribe_with_whisper(video_url, work_id)
+
+    if not transcript:
+        raise RuntimeError(
+            "Impossible d'obtenir le texte de la vidéo. "
+            "Vérifiez la disponibilité des sous-titres ou installez Whisper."
+        )
+
+    # Limiter la longueur du texte envoyé au modèle.
+    # Cette limite évite d'envoyer une transcription excessivement longue.
+    max_characters = 60000
+    if len(transcript) > max_characters:
+        transcript = transcript[:max_characters]
+        logger.warning("Transcription tronquée avant l'envoi à Groq.")
+
+    logger.info("Génération du résumé avec Groq.")
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=GROQ_MODEL,
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "Tu es un assistant qui résume les vidéos "
-                    "clairement, fidèlement et de manière concise."
+                    "Tu es un assistant spécialisé dans le résumé de vidéos. "
+                    "Résume fidèlement le contenu fourni en français. "
+                    "Présente les idées principales dans un langage clair, "
+                    "simple et concis. N'invente aucun fait et indique les "
+                    "points essentiels lorsque c'est pertinent."
                 ),
             },
             {
                 "role": "user",
                 "content": (
-                    "Résume cette transcription en français, "
-                    "en présentant les idées essentielles :\n\n"
-                    + text_for_summary
+                    "Résume cette transcription en français. "
+                    "Présente les idées essentielles de manière structurée.\n\n"
+                    f"Transcription :\n{transcript}"
                 ),
             },
         ],
         temperature=0.5,
-        max_tokens=400,
+        max_completion_tokens=700,
     )
 
-    return response.choices[0].message.content or ""
+    summary = response.choices[0].message.content or ""
+
+    if not summary.strip():
+        raise RuntimeError("Groq n'a retourné aucun résumé.")
+
+    return summary.strip()
 
 
-# ==================================================
-# TÉLÉCHARGEMENT VIDÉO / AUDIO
-# ==================================================
+# =========================================================
+# TÉLÉCHARGEMENT DES VIDÉOS
+# =========================================================
 
-def _download_video(url, file_format):
-    cleanup_stale_files()
-    validate_url(url)
+def download_video(video_url, file_format="mp4"):
+    """Télécharger une vidéo YouTube au format MP4 ou MP3."""
+    if not validate_url(video_url):
+        raise ValueError("Veuillez fournir une URL YouTube valide.")
 
-    file_format = file_format.lower().strip()
+    video_url = normalize_url(video_url)
+    work_id = uuid.uuid4().hex
+    output_template = str(DOWNLOAD_FOLDER / f"{work_id}.%(ext)s")
 
-    if file_format not in ("mp4", "mp3"):
-        raise ValueError("Format invalide : choisissez MP4 ou MP3.")
-
-    download_id = uuid.uuid4().hex
-    output_template = str(
-        DOWNLOAD_FOLDER / f"{download_id}.%(ext)s"
+    audio_only = file_format == "mp3"
+    options = create_ydl_options(
+        output_path=output_template,
+        audio_only=audio_only,
     )
 
-    ydl_opts = create_ydl_options()
-    ydl_opts.update({
-        "outtmpl": output_template,
-        "quiet": False,
-        "no_warnings": False,
-    })
+    with yt_dlp.YoutubeDL(options) as ydl:
+        info = ydl.extract_info(video_url, download=True)
+        downloaded_path = Path(ydl.prepare_filename(info))
 
-    if file_format == "mp4":
-        # Préférer un MP4 avec audio intégré si disponible.
-        # Sinon, fusionner la meilleure vidéo et le meilleur audio.
-        ydl_opts["format"] = (
-            "best[ext=mp4]/bestvideo*+bestaudio/best"
-        )
-        ydl_opts["merge_output_format"] = "mp4"
+    if audio_only:
+        downloaded_path = downloaded_path.with_suffix(".mp3")
 
-    else:
-        ydl_opts["format"] = "bestaudio/best"
-        ydl_opts["postprocessors"] = [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "mp3",
-            "preferredquality": "192",
-        }]
-
-    logging.info(
-        "Téléchargement demandé : format=%s",
-        file_format,
-    )
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        prepared_path = Path(ydl.prepare_filename(info))
-
-    # yt-dlp peut changer l'extension après fusion/conversion.
-    if file_format == "mp3":
-        final_path = prepared_path.with_suffix(".mp3")
-    else:
-        final_path = prepared_path.with_suffix(".mp4")
-
-    if not final_path.is_file():
-        # Recherche le fichier réel associé à cet identifiant.
-        candidates = list(
-            DOWNLOAD_FOLDER.glob(f"{download_id}.*")
-        )
-
+    if not downloaded_path.exists():
+        # Selon le format choisi, yt-dlp peut produire une extension différente.
+        candidates = list(DOWNLOAD_FOLDER.glob(f"{work_id}.*"))
         candidates = [
             path for path in candidates
-            if path.is_file()
-            and not path.name.endswith((".part", ".ytdl"))
+            if path.suffix.lower() in {".mp4", ".mp3", ".mkv", ".webm", ".m4a"}
         ]
 
-        if file_format == "mp4":
-            mp4_candidates = [
-                path for path in candidates
-                if path.suffix.lower() == ".mp4"
-            ]
-            candidates = mp4_candidates or candidates
-        else:
-            mp3_candidates = [
-                path for path in candidates
-                if path.suffix.lower() == ".mp3"
-            ]
-            candidates = mp3_candidates
-
-        if candidates:
-            final_path = candidates[0]
-        else:
+        if not candidates:
             raise FileNotFoundError(
-                "Le téléchargement s'est terminé, "
-                "mais le fichier final est introuvable."
+                "Le téléchargement est terminé, mais le fichier est introuvable."
             )
 
-    if final_path.stat().st_size == 0:
-        raise RuntimeError("Le fichier téléchargé est vide.")
+        downloaded_path = candidates[0]
 
-    logging.info("Fichier prêt : %s", final_path)
-
-    return str(final_path)
+    return downloaded_path
 
 
-# ==================================================
-# ENVOI DU FICHIER AU NAVIGATEUR
-# ==================================================
+# =========================================================
+# ROUTES FLASK
+# =========================================================
 
-def send_download(filename, file_format):
-    mimetype = (
-        "video/mp4"
-        if file_format == "mp4"
-        else "audio/mpeg"
+@app.route("/", methods=["GET"])
+def index():
+    """Afficher la page d'accueil."""
+    return render_template("index.html")
+
+
+@app.route("/robots.txt", methods=["GET"])
+def robots_txt():
+    """Fournir un fichier robots.txt minimal."""
+    return (
+        "User-agent: *\n"
+        "Allow: /\n",
+        200,
+        {"Content-Type": "text/plain; charset=utf-8"},
     )
 
-    return send_file(
-        filename,
-        as_attachment=True,
-        download_name=Path(filename).name,
-        mimetype=mimetype,
-    )
-
-
-# ==================================================
-# API : RÉSUMÉ
-# ==================================================
 
 @app.route("/api/summarize", methods=["POST"])
-def api_summarize():
+def summarize_route():
+    """API de génération de résumé."""
     data = request.get_json(silent=True) or {}
-    url = (data.get("url") or "").strip()
+    video_url = (
+        data.get("url")
+        or data.get("video_url")
+        or ""
+    ).strip()
 
-    if not url:
-        return jsonify({"error": "URL manquante."}), 400
-
-    try:
-        summary = generate_summary(url)
-        return jsonify({"summary": summary})
-
-    except Exception:
-        logging.exception("Erreur pendant le résumé AJAX.")
+    if not video_url:
         return jsonify({
-            "error": (
-                "Impossible de résumer cette vidéo. "
-                "Vérifiez l'URL, les sous-titres et la configuration."
-            )
-        }), 500
-
-
-# ==================================================
-# API : TÉLÉCHARGEMENT
-# ==================================================
-
-@app.route("/api/download", methods=["POST"])
-def api_download():
-    data = request.get_json(silent=True) or {}
-
-    url = (data.get("url") or "").strip()
-    file_format = (data.get("format") or "mp4").strip().lower()
-
-    if not url:
-        return jsonify({"error": "URL manquante."}), 400
-
-    if file_format not in ("mp4", "mp3"):
-        return jsonify({
-            "error": "Format invalide : choisissez MP4 ou MP3."
+            "error": "Veuillez fournir l'URL de la vidéo."
         }), 400
 
     try:
-        filename = _download_video(url, file_format)
-        return send_download(filename, file_format)
+        summary = generate_summary(video_url)
+        return jsonify({"summary": summary, "result": summary}), 200
+
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
 
     except Exception:
-        logging.exception("Erreur téléchargement AJAX.")
+        logger.exception("Erreur lors de la génération du résumé.")
         return jsonify({
             "error": (
-                "Le téléchargement a échoué. "
-                "Consultez les logs du serveur pour le détail."
+                "Impossible de générer le résumé. Vérifiez la configuration "
+                "Groq, les sous-titres de la vidéo et les journaux du serveur."
             )
         }), 500
 
 
-# ==================================================
-# PAGE PRINCIPALE
-# ==================================================
+@app.route("/api/download", methods=["POST"])
+def download_route():
+    """API de téléchargement MP4 ou MP3."""
+    data = request.get_json(silent=True) or {}
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    summary = None
+    video_url = (
+        data.get("url")
+        or data.get("video_url")
+        or ""
+    ).strip()
 
-    if request.method == "POST":
-        url = (request.form.get("url") or "").strip()
-        file_format = (
-            request.form.get("format") or "mp4"
-        ).strip().lower()
-        action = request.form.get("action", "download")
+    file_format = (
+        data.get("format")
+        or data.get("type")
+        or "mp4"
+    ).strip().lower()
+
+    if not video_url:
+        return jsonify({
+            "error": "Veuillez fournir l'URL de la vidéo."
+        }), 400
+
+    if file_format not in {"mp4", "mp3"}:
+        return jsonify({
+            "error": "Format non pris en charge. Choisissez MP4 ou MP3."
+        }), 400
+
+    try:
+        file_path = download_video(video_url, file_format)
+
+        mimetype = (
+            "audio/mpeg" if file_format == "mp3"
+            else "video/mp4"
+        )
+
+        return send_file(
+            file_path,
+            mimetype=mimetype,
+            as_attachment=True,
+            download_name=secure_filename(file_path.name),
+        )
+
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
+    except Exception:
+        logger.exception("Erreur lors du téléchargement.")
+        return jsonify({
+            "error": (
+                "Le téléchargement a échoué. Vérifiez l'URL, la connexion "
+                "et la disponibilité de la vidéo."
+            )
+        }), 500
+
+
+# =========================================================
+# NETTOYAGE DES ANCIENS FICHIERS
+# =========================================================
+
+def cleanup_old_files(max_age_hours=24):
+    """Supprimer les fichiers temporaires trop anciens."""
+    cutoff = time.time() - (max_age_hours * 60 * 60)
+
+    for file_path in DOWNLOAD_FOLDER.iterdir():
+        if not file_path.is_file():
+            continue
 
         try:
-            if not url:
-                raise ValueError("Veuillez saisir une URL YouTube.")
-
-            if action == "summarize":
-                summary = generate_summary(url)
-                return render_template(
-                    "index.html",
-                    summary=summary,
-                )
-
-            filename = _download_video(url, file_format)
-            return send_download(filename, file_format)
-
-        except Exception as exc:
-            logging.exception("Erreur sur la page principale.")
-            summary = f"Erreur : {exc}"
-
-    return render_template("index.html", summary=summary)
+            if file_path.stat().st_mtime < cutoff:
+                file_path.unlink(missing_ok=True)
+                logger.info("Fichier temporaire supprimé : %s", file_path.name)
+        except OSError:
+            logger.warning(
+                "Impossible de supprimer le fichier %s",
+                file_path,
+            )
 
 
-# ==================================================
+# =========================================================
 # DÉMARRAGE
-# ==================================================
+# =========================================================
 
 if __name__ == "__main__":
-    logging.info("Démarrage du serveur Flask.")
-    logging.info("FFmpeg : %s", FFMPEG_PATH)
+    cleanup_old_files()
+
+    logger.info("Dossier de téléchargement : %s", DOWNLOAD_FOLDER)
+    logger.info("FFmpeg utilisé : %s", FFMPEG_PATH)
+    logger.info(
+        "Clé Groq configurée : %s",
+        "oui" if GROQ_API_KEY else "non",
+    )
 
     app.run(
         host="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000)),
+        port=int(os.getenv("PORT", "10000")),
         debug=False,
     )

@@ -1,59 +1,70 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<title>Marketing IA</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Marketing IA</title>
+    <meta name="description" content="Générez des publications sociales percutantes grâce à l’IA marketing pensée comme un expert community manager.">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/marketing.css') }}">
 </head>
-<body class="bg-light">
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div class="badge">Community Manager IA</div>
+            <h1>Des publications sociales qui <span class="gradient">captent l’attention</span> et font agir.</h1>
+            <p>
+                Créez des textes percutants, crédibles et orientés engagement pour votre marque,
+                votre audience ou vos campagnes sociales. Une IA pensée comme un expert copywriting.
+            </p>
+        </header>
 
-<div class="container py-5">
-    <div class="col-md-8 mx-auto">
+        <main class="grid">
+            <section class="panel generator">
+                <div class="generator-header">
+                    <h2>Générateur de post</h2>
+                    <span class="pill">Prêt à publier</span>
+                </div>
 
-        <h2 class="text-center mb-4">🚀 Générateur de contenu marketing IA</h2>
+                <textarea id="prompt" placeholder="Ex : Rédige un post LinkedIn pour une startup SaaS qui vend une solution de gestion de temps afin de convertir des pros qui veulent gagner 5h par semaine..."></textarea>
 
-        <div class="mb-3">
-            <textarea id="prompt" class="form-control" rows="4"
-                placeholder="Ex: Donne-moi un texte de publication pour une PME dans le bâtiment..."></textarea>
-        </div>
+                <div class="actions">
+                    <button id="generateBtn" class="btn btn-primary w-100">Générer la publication</button>
+                    <button id="copyBtn" class="btn btn-secondary">Copier</button>
+                </div>
 
-        <button onclick="generate()" class="btn btn-primary w-100">
-            Générer
-        </button>
+                <div id="result" class="result empty">Le résultat apparaîtra ici...</div>
+            </section>
 
-        <div id="result" class="mt-4 p-3 bg-white border rounded d-none"></div>
+            <aside class="sidebar">
+                <section class="panel feature-card example">
+                    <h3>Ce que produit l’IA</h3>
+                    <p>
+                        Une publication avec <strong>accroche forte</strong>, <strong>bénéfice clair</strong>,
+                        <strong>ton adapté</strong> et <strong>CTA utile</strong>.
+                    </p>
+                </section>
 
+                <section class="panel feature-card">
+                    <h3>Conçu pour le marketing social</h3>
+                    <ul>
+                        <li>Hook percutant</li>
+                        <li>Texte orienté engagement</li>
+                        <li>CTA clair</li>
+                        <li>Hashtags ciblés</li>
+                    </ul>
+                </section>
+
+                <section class="panel feature-card">
+                    <h3>Objectif</h3>
+                    <p>
+                        Créer des posts qui donnent envie de cliquer, commenter, partager et convertir.
+                    </p>
+                </section>
+            </aside>
+        </main>
     </div>
-</div>
 
-<script>
-async function generate() {
-    const prompt = document.getElementById("prompt").value;
-    const resultDiv = document.getElementById("result");
-
-    resultDiv.classList.remove("d-none");
-    resultDiv.innerHTML = "⏳ Génération en cours...";
-
-    try {
-        const res = await fetch("/api/marketing/generate", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ prompt })
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-            throw new Error(data.error);
-        }
-
-        resultDiv.innerHTML = data.result;
-
-    } catch (err) {
-        resultDiv.innerHTML = "❌ Erreur : " + err.message;
-    }
-}
-</script>
-
+    <script src="{{ url_for('static', filename='js/marketing.js') }}" defer></script>
 </body>
 </html>

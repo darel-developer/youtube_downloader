@@ -1,118 +1,193 @@
-# 🎥 YouTube Downloader & Summarizer
+# � YouTube Downloader & Marketing AI
 
-[![Python CI](https://github.com/darel-developer/youtube_downloader/actions/workflows/ci.yml/badge.svg)](https://github.com/darel-developer/youtube_downloader/actions/workflows/ci.yml)
+Un projet Flask qui combine :
 
-Un petit service Flask qui permet de :
-
-- Télécharger une vidéo YouTube au format MP4 ou MP3.
-- Générer automatiquement un **résumé textuel** de la vidéo (via Whisper + OpenAI).
-
-L’interface est minimale mais fonctionnelle, le tout dans une seule page web.
+- un téléchargeur YouTube MP4 / MP3
+- un résumé IA des vidéos
+- une page marketing pour générer des publications sociales avec Groq
+- une landing page plus orientée conversion / acquisition
 
 ---
 
-## 🧱 Architecture du projet
+## ✅ Ce que contient le projet
 
-```
-youtube_downloader/
-├── app.py                 # application Flask
-├── downloads/             # dossier où sont enregistrés les fichiers téléchargés
-└── templates/
-    └── index.html         # interface Bootstrap
-```
-
-- **app.py** gère les routes, la logique de téléchargement (yt‑dlp), la transcription (Whisper) et l’appel à l’API OpenAI.
-- **templates/index.html** fournit un formulaire pour l’URL, le choix de format et le bouton de résumé.
-- Un dossier `downloads/` est créé automatiquement pour stocker les fichiers temporaires.
+- [app.py](app.py) : application Flask principale, logique de téléchargement, validation d’URL, nettoyage des fichiers, résumé IA et routes de l’API
+- [marketing.py](marketing.py) : blueprint marketing pour la génération de publications avec Groq
+- [templates/index.html](templates/index.html) : landing page principale
+- [templates/marketing.html](templates/marketing.html) : page de génération de contenu social
+- [static/css](static/css) : styles séparés pour les pages
+- [static/js](static/js) : JS pour les interactions
+- [downloads/](downloads/) : dossier de stockage temporaire des fichiers générés
 
 ---
 
-## ⚙️ Prérequis
+## ⚙️ Stack technique
 
-- Python ≥ 3.10 (testé sur Windows).
-- Clés/API :
-  - `OPENAI_API_KEY` (variable d’environnement) pour l’accès aux modèles GPT.
-- Dépendances Python listées ci‑dessous.
+- Python 3.10+
+- Flask
+- yt-dlp
+- imageio-ffmpeg
+- Groq
+- python-dotenv
+- gunicorn
 
 ---
 
-## 📦 Installation
+## 🚀 Installation locale
 
 ```bash
-# depuis la racine du projet
-python -m venv venv
-venv\Scripts\activate        # Windows
-# ou `source venv/bin/activate` sur Unix
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-pip install -r requirements.txt  
+Pour Windows PowerShell, tu peux aussi faire :
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 ```
 
 ---
 
-## 🚀 Lancement
+## 🔐 Variables d’environnement
+
+Crée un fichier `.env` à la racine avec le contenu suivant :
+
+```env
+GROQ_API_KEY=ta_cle_groq
+GROQ_MODEL=openai/gpt-oss-20b
+FLASK_SECRET_KEY=change-me-in-production
+```
+
+Tu peux copier le modèle depuis [.env.example](.env.example).
+
+---
+
+## ▶️ Lancement
 
 ```bash
-set OPENAI_API_KEY=ta_cle
 python app.py
 ```
 
-- L’application démarre en mode debug.
-- Ouvre `http://127.0.0.1:5000/` dans ton navigateur.
-- Colle un lien YouTube, choisis MP4/MP3 ou clique sur **Résumé de la vidéo**.
+Puis ouvre :
 
-Les fichiers sont envoyés en téléchargement et les résumés s’affichent directement.
-
----
-
-## 🧩 Fonctionnement interne
-
-1. **Téléchargement**  
-   Utilisation de `yt_dlp` pour récupérer la vidéo ou l’audio.  
-   Le chemin `downloads/` est nettoyé et surveillé pour garantir que les fichiers sont complets.
-
-2. **Transcription**  
-   - Si la vidéo contient des sous‑titres, ils sont téléchargés et nettoyés.
-   - Sinon, l’audio est extrait et passé au modèle Whisper `base`.
-
-3. **Résumé**  
-   Le texte généré est envoyé à l’API OpenAI (`gpt-3.5-turbo`) avec une consigne de résumé.
-
-4. **Interface**  
-   Bootstrap simple avec un formulaire et une zone de résumé.
+- http://127.0.0.1:5000/
+- http://127.0.0.1:5000/marketing
 
 ---
 
-## 🔮 Features à venir (idées)
+## 🧩 Fonctionnement principal
+
+### 1. Téléchargement
+- Validation de l’URL YouTube
+- Normalisation de l’URL
+- Téléchargement MP4 ou MP3 via yt-dlp
+- Nettoyage des fichiers temporaires dans le dossier downloads
+
+### 2. Résumé IA
+- Extraction des sous-titres si disponibles
+- Sinon transcription audio via Whisper si installé
+- Envoi du texte à Groq pour générer un résumé lisible
+
+### 3. Génération marketing
+- Prompt orienté community manager / copywriting
+- Génération d’une publication sociale
+- Ajout automatique d’un bloc hashtags si le modèle n’en fournit pas
 
 ---
 
-## 🛠️ CI/CD
+## 🏭 Ce qu’il faut ajouter pour passer en production
 
-Le projet est équipé d'un pipeline GitHub Actions défini dans `.github/workflows/ci.yml`. Il s'exécute sur chaque `push` ou `pull_request` vers la branche `main` et réalise :
+Voici la checklist la plus importante avant de mettre le projet en ligne :
 
-1. Installation de Python 3.11
-2. Installation des dépendances (`requirements.txt`) + `flake8` pour le linting
-3. Vérification de la syntaxe Python
-4. Un test de fumée minimal
+### Sécurité
+- remplacer `FLASK_SECRET_KEY` par une vraie clé forte
+- ne jamais committer le fichier `.env`
+- activer HTTPS via le hébergeur / reverse proxy
+- sécuriser les routes contre les abus (rate limiting, validation stricte, logs)
 
-Le badge en haut du README indique l'état du pipeline ; remplacez `<owner>/<repo>` par votre dépôt.
+### Déploiement
+- utiliser un serveur WSGI en production : `gunicorn`
+- configurer une variable d’environnement pour le mode production
+- désactiver le debug (`debug=False`)
+- mettre la page derrière un domaine propre avec SSL
 
+### Gestion des fichiers
+- limiter la taille des uploads / téléchargements
+- nettoyer automatiquement les fichiers anciens dans `downloads/`
+- prévoir un quota disque ou un stockage externe si les usages augmentent
 
-- 📁 **Historique / journaux** des vidéos traitées.
-- 🧠 Paramètres de résumé (longueur, langue, ton).
-- 🗂 Mise en cache des transcriptions / résumés pour réutilisation.
-- 🎨 Refonte UI + feedback de progression.
-- 📝 Export du résumé au format TXT/PDF.
-- 📡 Support d’autres plateformes (Vimeo, TikTok…).
-- 🔒 Authentification utilisateur.
+### Observabilité
+- ajouter des logs structurés
+- surveiller les erreurs (Sentry ou équivalent)
+- enregistrer les erreurs Groq / yt-dlp / téléchargement
+
+### Robustesse
+- ajouter des tests automatisés
+- contrôler les erreurs sur les URLs invalides ou bloquées
+- prévoir un message propre si le téléchargement échoue
+- ajouter une gestion de retry sur les appels API externes
+
+### SEO / acquisition
+- ajouter un vrai titre, meta description, Open Graph et robots.txt
+- préparer des pages de vente / landing page plus poussées
+- distinguer clairement les pages “outil” et “marketing AI” dans la navigation
+
+### Bonnes pratiques business
+- spécifier clairement la légalité / usage du service
+- ajouter une page mentions légales / CGU si tu le publies public
+- vérifier les droits d’utilisation des contenus téléchargés selon le pays et la plateforme
 
 ---
 
-## ✅ Notes
+## 🚀 Commande de prod recommandée
 
-- Nécessite `ffmpeg` : `imageio-ffmpeg` gère l’exécutable mais vérifie l’existence au démarrage.
-- La fonction `wait_for_file_stable` garantit que le téléchargement est terminé avant traitement (utile surtout sous Windows).
-- Ajoute un `.gitignore` si tu commites : exclure `downloads/`, `venv/`, `.env`.
+Pour un déploiement simple avec Gunicorn :
+
+```bash
+gunicorn --bind 0.0.0.0:8000 app:app
+```
+
+Pour Render / Railway / VPS, tu places simplement :
+
+- `gunicorn app:app`
+- la variable `GROQ_API_KEY`
+- la variable `FLASK_SECRET_KEY`
+
+---
+
+## 🧪 Conseils utiles
+
+- Garde le dossier `downloads/` hors du dépôt si possible
+- Jette un œil au nettoyage des fichiers anciens pour éviter de remplir le disque
+- Si le site est public, limite les requêtes par IP pour éviter le spam
+- Si tu veux monétiser, ajoute d’abord un système de quota ou une version premium
+
+---
+
+## 📌 À venir
+
+- amélioration de la sécurité upload/download
+- gestion des erreurs plus explicites
+- UI plus premium et plus conversion-driven
+- dashboard d’usage / statistiques
+- stockage centralisé des fichiers et génération d’URL de téléchargement
+- auth admin / protection contre l’abus
+
+---
+
+## ✅ En résumé
+
+Le projet est déjà utile et fonctionnel localement, mais pour la production il faut surtout :
+
+1. sécuriser les variables et le secret
+2. passer en WSGI (Gunicorn)
+3. activer HTTPS
+4. limiter l’abus et nettoyer le stockage
+5. ajouter logs + monitoring
+6. préparer la conformité / SEO / landing page
 
 ---
 

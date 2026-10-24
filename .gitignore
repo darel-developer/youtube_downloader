@@ -13,6 +13,11 @@ downloads/*
 *.m4a
 *.webm
 .env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+
 
 # IDE / OS
 .vscode/

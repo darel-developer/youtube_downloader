@@ -1,8 +1,7 @@
+
 flask
 yt-dlp
 imageio-ffmpeg
-openai-whisper
-openai
-requests
-gunicorn
+groq
 python-dotenv
+gunicorn
