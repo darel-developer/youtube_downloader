@@ -42,6 +42,23 @@ BASE_DIR = Path(__file__).resolve().parent
 DOWNLOAD_FOLDER = BASE_DIR / "downloads"
 DOWNLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
+
+def cleanup_stale_files(folder=DOWNLOAD_FOLDER, max_age_seconds=3600):
+    """Supprime les fichiers temporaires obsolètes pour limiter la taille du dossier."""
+    if not folder.exists():
+        return
+
+    now = time.time()
+    for path in folder.iterdir():
+        try:
+            if path.is_file() and (now - path.stat().st_mtime) > max_age_seconds:
+                path.unlink()
+        except OSError as exc:
+            logging.warning("Impossible de nettoyer %s : %s", path, exc)
+
+
+cleanup_stale_files()
+
 FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
 if not os.path.isfile(FFMPEG_PATH):
@@ -127,6 +144,8 @@ def get_whisper_model():
 # ==================================================
 
 def generate_summary(video_url):
+    cleanup_stale_files()
+
     if client is None:
         raise RuntimeError(
             "La clé OPENAI_API_KEY n'est pas configurée."
@@ -291,6 +310,7 @@ def generate_summary(video_url):
 # ==================================================
 
 def _download_video(url, file_format):
+    cleanup_stale_files()
     validate_url(url)
 
     file_format = file_format.lower().strip()

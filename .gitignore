@@ -2,10 +2,19 @@
 __pycache__/
 *.py[cod]
 venv/
+.venv/
 
 # application
 downloads/
+downloads/*
+*.part
+*.mp4
+*.mp3
+*.m4a
+*.webm
 .env
 
-# VS Code
+# IDE / OS
 .vscode/
+.idea/
+.DS_Store
