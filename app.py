@@ -22,6 +22,12 @@ from marketing import marketing_bp
 
 BASE_DIR = Path(__file__).resolve().parent
 DOWNLOAD_FOLDER = BASE_DIR / "downloads"
+# Vercel : seul le dossier /tmp est inscriptible
+if os.getenv("VERCEL"):
+    DOWNLOAD_FOLDER = Path("/tmp/downloads")
+else:
+    DOWNLOAD_FOLDER = Path(__file__).resolve().parent / "downloads"
+
 DOWNLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
 load_dotenv(BASE_DIR / ".env")
