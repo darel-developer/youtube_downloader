@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="YouTube Downloader favicon">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff2b2b"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#0a1020"/>
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#bg)"/>
+  <path d="M52 38.5c0-4.3 4.5-7 8.3-4.7l28.7 18.2c3.7 2.3 3.7 7.1 0 9.4L60.3 79.7c-3.8 2.3-8.3-.4-8.3-4.7V38.5z" fill="#fff"/>
+  <path d="M18 24h92c6.6 0 12 5.4 12 12v56c0 6.6-5.4 12-12 12H18c-6.6 0-12-5.4-12-12V36c0-6.6 5.4-12 12-12z" fill="none" stroke="url(#shine)" stroke-opacity="0.6" stroke-width="3"/>
+</svg>
