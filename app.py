@@ -28,6 +28,12 @@ if cookies_content:
     cookies_path = Path("/tmp/youtube_cookies.txt")
     cookies_path.write_text(cookies_content, encoding="utf-8")
     os.environ["YOUTUBE_COOKIES_PATH"] = str(cookies_path)
+    logger = logging.getLogger(__name__)
+    logger.info("Fichier cookies YouTube créé dans %s", cookies_path)
+    logger.info("Longueur du cookie YouTube : %s caractères", len(cookies_content))
+else:
+    logger = logging.getLogger(__name__)
+    logger.warning("Aucune variable YOUTUBE_COOKIES_CONTENT détectée. Les vidéos anti-bot peuvent être bloquées.")
 
 
 def get_download_dir():
