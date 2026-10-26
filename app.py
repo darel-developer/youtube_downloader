@@ -23,6 +23,13 @@ from marketing import marketing_bp
 BASE_DIR = Path(__file__).resolve().parent
 
 
+cookies_content = os.getenv("YOUTUBE_COOKIES_CONTENT")
+if cookies_content:
+    cookies_path = Path("/tmp/youtube_cookies.txt")
+    cookies_path.write_text(cookies_content, encoding="utf-8")
+    os.environ["YOUTUBE_COOKIES_PATH"] = str(cookies_path)
+
+
 def get_download_dir():
     """Choisir un dossier de stockage fiable en local et en production."""
     if os.getenv("VERCEL"):
@@ -146,16 +153,60 @@ def normalize_url(url):
 # OPTIONS YT-DLP
 # =========================================================
 
+def get_yt_cookie_options():
+    """Récupérer les cookies YouTube si configurés pour contourner les vérifications anti-bot."""
+    cookies_path = os.getenv("YOUTUBE_COOKIES_PATH")
+    browser_names = os.getenv("YOUTUBE_COOKIES_FROM_BROWSER")
+
+    options = {}
+
+    if cookies_path and Path(cookies_path).exists():
+        options["cookies"] = cookies_path
+    elif browser_names:
+        browsers = [
+            browser.strip()
+            for browser in browser_names.split(",")
+            if browser.strip()
+        ]
+        if browsers:
+            options["cookiesfrombrowser"] = browsers
+
+    return options
+
+
 def create_ydl_options(output_path=None, audio_only=False):
     """Préparer les options de téléchargement."""
+    youtube_extract_args = os.getenv(
+        "YOUTUBE_EXTRACTOR_ARGS",
+        "player_client=web,player_client=android",
+    )
+
     options = {
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "ffmpeg_location": FFMPEG_PATH,
         "socket_timeout": 30,
         "retries": 3,
+        "geo_bypass": True,
+        "nocheckcertificate": True,
+        "extractor_args": {
+            "youtube": [
+                arg.strip() for arg in youtube_extract_args.split(",") if arg.strip()
+            ]
+        },
+        "http_headers": {
+            "User-Agent": os.getenv(
+                "YOUTUBE_USER_AGENT",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            ),
+            "Accept-Language": os.getenv("YOUTUBE_ACCEPT_LANGUAGE", "fr-FR,fr;q=0.9,en;q=0.8"),
+        },
     }
+    options.update(get_yt_cookie_options())
+
+    if FFMPEG_PATH:
+        options["ffmpeg_location"] = FFMPEG_PATH
 
     if output_path:
         options["outtmpl"] = str(output_path)
@@ -217,7 +268,18 @@ def extract_subtitles(video_url, work_id):
         "no_warnings": True,
         "noplaylist": True,
         "socket_timeout": 30,
+        "geo_bypass": True,
+        "nocheckcertificate": True,
+        "http_headers": {
+            "User-Agent": os.getenv(
+                "YOUTUBE_USER_AGENT",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            ),
+            "Accept-Language": os.getenv("YOUTUBE_ACCEPT_LANGUAGE", "fr-FR,fr;q=0.9,en;q=0.8"),
+        },
     }
+    options.update(get_yt_cookie_options())
 
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
@@ -278,10 +340,22 @@ def transcribe_with_whisper(video_url, work_id):
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "ffmpeg_location": FFMPEG_PATH,
         "socket_timeout": 30,
         "retries": 3,
+        "geo_bypass": True,
+        "nocheckcertificate": True,
+        "http_headers": {
+            "User-Agent": os.getenv(
+                "YOUTUBE_USER_AGENT",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            ),
+            "Accept-Language": os.getenv("YOUTUBE_ACCEPT_LANGUAGE", "fr-FR,fr;q=0.9,en;q=0.8"),
+        },
     }
+    if FFMPEG_PATH:
+        options["ffmpeg_location"] = FFMPEG_PATH
+    options.update(get_yt_cookie_options())
 
     audio_file = None
 
@@ -418,9 +492,16 @@ def download_video(video_url, file_format="mp4"):
         audio_only=audio_only,
     )
 
-    with yt_dlp.YoutubeDL(options) as ydl:
-        info = ydl.extract_info(video_url, download=True)
-        downloaded_path = Path(ydl.prepare_filename(info))
+    try:
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info = ydl.extract_info(video_url, download=True)
+            downloaded_path = Path(ydl.prepare_filename(info))
+    except Exception as exc:
+        logger.exception("Échec du téléchargement yt-dlp pour l'URL %s", video_url)
+        raise RuntimeError(
+            "Le téléchargement YouTube a échoué depuis l’environnement de production. "
+            "La vidéo est peut-être bloquée, limitée ou indisponible côté YouTube."
+        ) from exc
 
     if audio_only:
         downloaded_path = downloaded_path.with_suffix(".mp3")

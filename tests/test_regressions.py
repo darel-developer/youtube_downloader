@@ -52,5 +52,23 @@ class GroqRequestTests(unittest.TestCase):
             app.extract_subtitles = original_extract
 
 
+class YoutubeCookieConfigTests(unittest.TestCase):
+    def test_cookie_options_are_injected_when_configured(self):
+        original = os.environ.get("YOUTUBE_COOKIES_PATH")
+        temp_path = Path(__file__).resolve().parent / "cookies.txt"
+        temp_path.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
+
+        try:
+            os.environ["YOUTUBE_COOKIES_PATH"] = str(temp_path)
+            options = app.get_yt_cookie_options()
+            self.assertEqual(options["cookies"], str(temp_path))
+        finally:
+            if original is None:
+                os.environ.pop("YOUTUBE_COOKIES_PATH", None)
+            else:
+                os.environ["YOUTUBE_COOKIES_PATH"] = original
+            temp_path.unlink(missing_ok=True)
+
+
 if __name__ == "__main__":
     unittest.main()
