@@ -21,13 +21,34 @@ from marketing import marketing_bp
 # =========================================================
 
 BASE_DIR = Path(__file__).resolve().parent
-DOWNLOAD_FOLDER = BASE_DIR / "downloads"
-# Vercel : seul le dossier /tmp est inscriptible
-if os.getenv("VERCEL"):
-    DOWNLOAD_FOLDER = Path("/tmp/downloads")
-else:
-    DOWNLOAD_FOLDER = Path(__file__).resolve().parent / "downloads"
 
+
+def get_download_dir():
+    """Choisir un dossier de stockage fiable en local et en production."""
+    if os.getenv("VERCEL"):
+        candidate = Path("/tmp/downloads")
+        candidate.mkdir(parents=True, exist_ok=True)
+        return candidate
+
+    candidates = [
+        Path.home() / "Downloads",
+        Path.home() / "downloads",
+        Path("/tmp/downloads"),
+        BASE_DIR / "downloads",
+    ]
+
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            if candidate.exists() and os.access(candidate, os.W_OK):
+                return candidate
+        except OSError:
+            continue
+
+    return BASE_DIR / "downloads"
+
+
+DOWNLOAD_FOLDER = get_download_dir()
 DOWNLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
 load_dotenv(BASE_DIR / ".env")
@@ -367,7 +388,7 @@ def generate_summary(video_url):
             },
         ],
         temperature=0.5,
-        max_completion_tokens=700,
+        max_tokens=700,
     )
 
     summary = response.choices[0].message.content or ""

@@ -104,7 +104,7 @@ def generate_post():
                 },
             ],
             temperature=0.7,
-            max_completion_tokens=500,
+            max_tokens=500,
         )
 
         result = (response.choices[0].message.content or "").strip()
