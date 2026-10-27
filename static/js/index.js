@@ -1,10 +1,31 @@
 document.addEventListener('DOMContentLoaded', () => {
     const summaryBtn = document.getElementById('summarizeBtn');
+    const openBrowserBtn = document.getElementById('openBrowserBtn');
     const downloadForm = document.getElementById('dlForm');
     const statusEl = document.getElementById('status');
     const statusMessage = document.getElementById('statusMessage');
     const summaryCard = document.getElementById('summaryCard');
     const summaryText = document.getElementById('summaryText');
+
+    function normalizeYoutubeUrl(value) {
+        const trimmed = value.trim();
+        if (!trimmed) return '';
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+            return trimmed;
+        }
+        return `https://${trimmed}`;
+    }
+
+    function openYoutubeInBrowser() {
+        const url = normalizeYoutubeUrl(document.getElementById('url').value);
+        if (!url) {
+            setStatus('Veuillez entrer une URL YouTube.', true);
+            return;
+        }
+
+        window.open(url, '_blank', 'noopener,noreferrer');
+        setStatus('La vidéo a été ouverte dans votre navigateur. Tu peux utiliser le téléchargement natif du navigateur.', false);
+    }
 
     function setStatus(message, isError = false) {
         statusEl.classList.remove('d-none');
@@ -100,7 +121,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!response.ok) {
                 const data = await response.json();
-                throw new Error(data.error || `Erreur ${response.status}`);
+                const apiMessage = data.error || `Erreur ${response.status}`;
+                if (apiMessage.toLowerCase().includes('bot') || apiMessage.toLowerCase().includes('téléchargement a échoué') || apiMessage.toLowerCase().includes('youtube')) {
+                    window.open(normalizeYoutubeUrl(url), '_blank', 'noopener,noreferrer');
+                    throw new Error('YouTube bloque le téléchargement depuis le serveur. La vidéo a été ouverte dans votre navigateur pour un téléchargement natif.');
+                }
+                throw new Error(apiMessage);
             }
 
             const blob = await response.blob();
@@ -123,6 +149,8 @@ document.addEventListener('DOMContentLoaded', () => {
             disableForm(false);
         }
     }
+
+    openBrowserBtn.addEventListener('click', openYoutubeInBrowser);
 
     summaryBtn.addEventListener('click', (event) => {
         event.preventDefault();
