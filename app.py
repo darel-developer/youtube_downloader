@@ -122,6 +122,8 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+logger.info("Runtime boot: YOUTUBE_COOKIES_CONTENT present = %s", bool(os.getenv("YOUTUBE_COOKIES_CONTENT")))
+logger.info("Runtime boot: YOUTUBE_COOKIES_PATH = %s", os.getenv("YOUTUBE_COOKIES_PATH"))
 
 
 # =========================================================
@@ -566,6 +568,8 @@ def summarize_route():
             "error": "Veuillez fournir l'URL de la vidéo."
         }), 400
 
+    logger.info("Summarize request: cookie_present=%s, cookie_path=%s", bool(os.getenv("YOUTUBE_COOKIES_CONTENT")), os.getenv("YOUTUBE_COOKIES_PATH"))
+
     try:
         summary = generate_summary(video_url)
         return jsonify({"summary": summary, "result": summary}), 200
@@ -609,6 +613,8 @@ def download_route():
         return jsonify({
             "error": "Format non pris en charge. Choisissez MP4 ou MP3."
         }), 400
+
+    logger.info("Download request: cookie_present=%s, cookie_path=%s, format=%s", bool(os.getenv("YOUTUBE_COOKIES_CONTENT")), os.getenv("YOUTUBE_COOKIES_PATH"), file_format)
 
     try:
         file_path = download_video(video_url, file_format)
